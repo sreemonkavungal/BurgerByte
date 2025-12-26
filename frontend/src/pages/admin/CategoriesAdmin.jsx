@@ -6,30 +6,40 @@ export default function CategoriesAdmin() {
   const [form, setForm] = useState({ name: "", description: "" });
   const [editingId, setEditingId] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const resetForm = () => setForm({ name: "", description: "" });
 
-  const load = () =>
-    axiosClient
-      .get("/categories")
-      .then((res) => setCategories(res.data))
-      .catch(() => setError("Failed to load categories"));
+  const loadCategories = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await axiosClient.get("/api/categories");
+      setCategories(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to load categories", err);
+      setError("Failed to load categories");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    load();
+    loadCategories();
   }, []);
 
   const save = async (e) => {
     e.preventDefault();
     try {
       if (editingId) {
-        await axiosClient.put(`/categories/${editingId}`, form);
+        await axiosClient.put(`/api/categories/${editingId}`, form);
       } else {
-        await axiosClient.post("/categories", form);
+        await axiosClient.post("/api/categories", form);
       }
       setEditingId("");
       resetForm();
-      load();
+      loadCategories();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save category");
     }
@@ -37,7 +47,10 @@ export default function CategoriesAdmin() {
 
   const startEdit = (cat) => {
     setEditingId(cat._id);
-    setForm({ name: cat.name, description: cat.description || "" });
+    setForm({
+      name: cat.name,
+      description: cat.description || "",
+    });
   };
 
   const cancelEdit = () => {
@@ -46,22 +59,26 @@ export default function CategoriesAdmin() {
   };
 
   const remove = async (id) => {
-    await axiosClient.delete(`/categories/${id}`);
-    if (editingId === id) cancelEdit();
-    load();
+    try {
+      await axiosClient.delete(`/api/categories/${id}`);
+      if (editingId === id) cancelEdit();
+      loadCategories();
+    } catch (err) {
+      setError("Failed to delete category");
+    }
   };
 
   return (
     <div className="min-h-[70vh] bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         {/* Header */}
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Categories</h1>
-            <p className="text-sm text-slate-500">
-              Define and manage burger categories for your menu.
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            Categories
+          </h1>
+          <p className="text-sm text-slate-500">
+            Define and manage burger categories for your menu.
+          </p>
         </div>
 
         {/* Error */}
@@ -71,20 +88,20 @@ export default function CategoriesAdmin() {
           </p>
         )}
 
-        {/* Form card */}
+        {/* Form */}
         <form
           onSubmit={save}
-          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4"
         >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-slate-900">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold">
               {editingId ? "Edit category" : "Add category"}
             </p>
             {editingId && (
               <button
                 type="button"
                 onClick={cancelEdit}
-                className="text-xs font-medium text-amber-700 hover:text-amber-600"
+                className="text-xs font-medium text-amber-700"
               >
                 Cancel edit
               </button>
@@ -92,78 +109,71 @@ export default function CategoriesAdmin() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">
-                Name
-              </label>
-              <input
-                placeholder="e.g. Signature Burgers"
-                value={form.name}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, name: e.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 outline-none"
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">
-                Description
-              </label>
-              <input
-                placeholder="Short description (optional)"
-                value={form.description}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, description: e.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 outline-none"
-              />
-            </div>
+            <input
+              required
+              placeholder="Category name"
+              value={form.name}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, name: e.target.value }))
+              }
+              className="rounded-lg border px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="Description (optional)"
+              value={form.description}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, description: e.target.value }))
+              }
+              className="rounded-lg border px-3 py-2 text-sm"
+            />
           </div>
 
-          <div className="pt-2">
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-amber-400 transition w-full sm:w-auto"
-            >
-              {editingId ? "Save changes" : "Add category"}
-            </button>
-          </div>
+          <button
+            type="submit"
+            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold"
+          >
+            {editingId ? "Save changes" : "Add category"}
+          </button>
         </form>
 
-        {/* Table card */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-auto">
+        {/* Table */}
+        <div className="rounded-2xl border bg-white shadow-sm overflow-auto">
+          {loading ? (
+            <p className="py-6 text-center text-sm text-slate-500">
+              Loading categories…
+            </p>
+          ) : categories.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-500">
+              No categories yet.
+            </p>
+          ) : (
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-slate-600">
+              <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Name</th>
-                  <th className="px-4 py-3 font-medium">Description</th>
-                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                  <th className="px-4 py-3 text-left">Name</th>
+                  <th className="px-4 py-3 text-left">Description</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {categories.map((c) => (
-                  <tr key={c._id} className="border-t border-slate-100">
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">
+                  <tr key={c._id} className="border-t">
+                    <td className="px-4 py-3 font-semibold">
                       {c.name}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600 sm:text-sm">
-                      {c.description || (
-                        <span className="text-slate-400">No description</span>
-                      )}
+                    <td className="px-4 py-3">
+                      {c.description || "—"}
                     </td>
                     <td className="px-4 py-3 text-right space-x-3">
                       <button
                         onClick={() => startEdit(c)}
-                        className="text-xs font-medium text-blue-600 hover:text-blue-500"
+                        className="text-xs text-blue-600"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => remove(c._id)}
-                        className="text-xs font-medium text-red-600 hover:text-red-500"
+                        className="text-xs text-red-600"
                       >
                         Delete
                       </button>
@@ -172,13 +182,7 @@ export default function CategoriesAdmin() {
                 ))}
               </tbody>
             </table>
-
-            {!categories.length && (
-              <p className="py-4 text-center text-sm text-slate-500">
-                No categories yet.
-              </p>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

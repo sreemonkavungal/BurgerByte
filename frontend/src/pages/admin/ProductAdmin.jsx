@@ -6,6 +6,9 @@ export default function ProductAdmin() {
   const [categories, setCategories] = useState([]);
   const [editingId, setEditingId] = useState("");
   const [search, setSearch] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
   const [form, setForm] = useState({
     name: "",
     price: 0,
@@ -14,7 +17,6 @@ export default function ProductAdmin() {
     category: "",
     isAvailable: true,
   });
-  const [error, setError] = useState("");
 
   const resetForm = () =>
     setForm({
@@ -26,22 +28,43 @@ export default function ProductAdmin() {
       isAvailable: true,
     });
 
-  const loadProducts = () =>
-    axiosClient
-      .get("/products?all=true")
-      .then((res) => setProducts(res.data))
-      .catch(() => setError("Failed to load products"));
+  /* ================= LOAD DATA ================= */
 
-  const loadCategories = () =>
-    axiosClient
-      .get("/categories")
-      .then((res) => setCategories(res.data))
-      .catch(() => setError("Failed to load categories"));
+  const loadProducts = async () => {
+    const res = await axiosClient.get("/api/products?all=true");
+    return Array.isArray(res.data) ? res.data : [];
+  };
+
+  const loadCategories = async () => {
+    const res = await axiosClient.get("/api/categories");
+    return Array.isArray(res.data) ? res.data : [];
+  };
 
   useEffect(() => {
-    loadProducts();
-    loadCategories();
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const [productsData, categoriesData] = await Promise.all([
+          loadProducts(),
+          loadCategories(),
+        ]);
+
+        setProducts(productsData);
+        setCategories(categoriesData);
+      } catch (err) {
+        console.error("Failed to load products or categories", err);
+        setError("Failed to load products");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
+
+  /* ================= CRUD ================= */
 
   const startEdit = (product) => {
     setEditingId(product._id);
@@ -64,26 +87,33 @@ export default function ProductAdmin() {
     e.preventDefault();
     try {
       if (editingId) {
-        await axiosClient.put(`/products/${editingId}`, form);
+        await axiosClient.put(`/api/products/${editingId}`, form);
       } else {
-        await axiosClient.post("/products", form);
+        await axiosClient.post("/api/products", form);
       }
       cancelEdit();
-      loadProducts();
+      setProducts(await loadProducts());
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save product");
     }
   };
 
   const remove = async (id) => {
-    await axiosClient.delete(`/products/${id}`);
-    if (editingId === id) cancelEdit();
-    loadProducts();
+    try {
+      await axiosClient.delete(`/api/products/${id}`);
+      if (editingId === id) cancelEdit();
+      setProducts(await loadProducts());
+    } catch {
+      setError("Failed to delete product");
+    }
   };
+
+  /* ================= FILTER ================= */
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return products;
+
     return products.filter(
       (p) =>
         p.name?.toLowerCase().includes(term) ||
@@ -92,31 +122,27 @@ export default function ProductAdmin() {
     );
   }, [products, search]);
 
+  /* ================= UI ================= */
+
   return (
     <div className="min-h-[70vh] bg-slate-50">
       <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
-        {/* Header + search */}
+        {/* Header */}
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">
-              Product management
+              Product Management
             </h1>
             <p className="text-sm text-slate-500">
-              Add, edit, or remove products. Attach images, prices, and
-              categories.
+              Add, edit, or remove products and assign categories.
             </p>
           </div>
-          <div className="w-full max-w-xs">
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Search
-            </label>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, description, or category"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 outline-none"
-            />
-          </div>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search products"
+            className="w-full max-w-xs rounded-lg border px-3 py-2 text-sm"
+          />
         </div>
 
         {error && (
@@ -125,204 +151,131 @@ export default function ProductAdmin() {
           </p>
         )}
 
-        {/* Form card */}
+        {loading && (
+          <p className="text-sm text-slate-500">Loading products…</p>
+        )}
+
+        {/* FORM */}
         <form
           onSubmit={save}
-          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+          className="rounded-2xl border bg-white p-5 shadow-sm space-y-4"
         >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-slate-900">
-              {editingId ? "Edit product" : "Add new product"}
-            </p>
-            {editingId && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="text-xs font-medium text-amber-700 hover:text-amber-600"
-              >
-                Cancel edit
-              </button>
-            )}
-          </div>
+          <p className="text-sm font-semibold">
+            {editingId ? "Edit product" : "Add new product"}
+          </p>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">
-                Name
-              </label>
-              <input
-                value={form.name}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, name: e.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 outline-none"
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">
-                Price
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={form.price}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    price: Number(e.target.value),
-                  }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 outline-none"
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">
-                Image URL
-              </label>
-              <input
-                value={form.imageUrl}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, imageUrl: e.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 outline-none"
-                placeholder="https://..."
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">
-                Category
-              </label>
-              <select
-                value={form.category}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, category: e.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 outline-none"
-              >
-                <option value="">Select category</option>
-                {categories.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">
-              Description
-            </label>
-            <textarea
-              value={form.description}
+            <input
+              required
+              placeholder="Name"
+              value={form.name}
               onChange={(e) =>
-                setForm((p) => ({ ...p, description: e.target.value }))
+                setForm((p) => ({ ...p, name: e.target.value }))
               }
-              rows={3}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 outline-none"
+              className="rounded-lg border px-3 py-2 text-sm"
             />
-          </div>
-
-          <div className="pt-2">
-            <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-              <input
-                type="checkbox"
-                checked={form.isAvailable}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    isAvailable: e.target.checked,
-                  }))
-                }
-                className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
-              />
-              Available
-            </label>
-          </div>
-
-          <div className="pt-3">
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-amber-400 transition w-full sm:w-auto"
+            <input
+              type="number"
+              min="0"
+              required
+              placeholder="Price"
+              value={form.price}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, price: Number(e.target.value) }))
+              }
+              className="rounded-lg border px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="Image URL"
+              value={form.imageUrl}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, imageUrl: e.target.value }))
+              }
+              className="rounded-lg border px-3 py-2 text-sm"
+            />
+            <select
+              value={form.category}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, category: e.target.value }))
+              }
+              className="rounded-lg border px-3 py-2 text-sm"
             >
-              {editingId ? "Save changes" : "Add product"}
-            </button>
+              <option value="">Select category</option>
+              {categories.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </div>
+
+          <textarea
+            rows={3}
+            placeholder="Description"
+            value={form.description}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, description: e.target.value }))
+            }
+            className="w-full rounded-lg border px-3 py-2 text-sm"
+          />
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.isAvailable}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, isAvailable: e.target.checked }))
+              }
+            />
+            Available
+          </label>
+
+          <button
+            type="submit"
+            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold"
+          >
+            {editingId ? "Save changes" : "Add product"}
+          </button>
         </form>
 
-        {/* Table */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-auto">
+        {/* TABLE */}
+        <div className="rounded-2xl border bg-white shadow-sm overflow-auto">
+          {filtered.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-500">
+              No products found.
+            </p>
+          ) : (
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-slate-600">
+              <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Product</th>
-                  <th className="px-4 py-3 font-medium">Category</th>
-                  <th className="px-4 py-3 font-medium">Price</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                  <th className="px-4 py-3 text-left">Product</th>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3">Price</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((p) => (
-                  <tr key={p._id} className="border-t border-slate-100">
+                  <tr key={p._id} className="border-t">
+                    <td className="px-4 py-3 font-semibold">{p.name}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {p.imageUrl ? (
-                          <img
-                            src={p.imageUrl}
-                            alt={p.name}
-                            className="h-12 w-12 rounded-md border border-slate-200 object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-md bg-slate-100 text-[11px] text-slate-500">
-                            No image
-                          </div>
-                        )}
-                        <div className="space-y-0.5">
-                          <p className="text-sm font-semibold text-slate-900">
-                            {p.name}
-                          </p>
-                          <p className="line-clamp-2 text-xs text-slate-500">
-                            {p.description}
-                          </p>
-                        </div>
-                      </div>
+                      {p.category?.name || "—"}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {p.category?.name || (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      ₹{p.price}
-                    </td>
+                    <td className="px-4 py-3">₹{p.price}</td>
                     <td className="px-4 py-3">
-                      {p.isAvailable ? (
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                          Available
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-600">
-                          Unavailable
-                        </span>
-                      )}
+                      {p.isAvailable ? "Available" : "Unavailable"}
                     </td>
                     <td className="px-4 py-3 text-right space-x-3">
                       <button
                         onClick={() => startEdit(p)}
-                        className="text-xs font-medium text-blue-600 hover:text-blue-500"
+                        className="text-xs text-blue-600"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => remove(p._id)}
-                        className="text-xs font-medium text-red-600 hover:text-red-500"
+                        className="text-xs text-red-600"
                       >
                         Delete
                       </button>
@@ -331,13 +284,7 @@ export default function ProductAdmin() {
                 ))}
               </tbody>
             </table>
-
-            {!filtered.length && (
-              <p className="py-4 text-center text-sm text-slate-500">
-                No products found.
-              </p>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

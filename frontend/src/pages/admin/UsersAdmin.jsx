@@ -4,12 +4,25 @@ import axiosClient from "../../api/axiosClient";
 export default function UsersAdmin() {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await axiosClient.get("/api/admin/users");
+      setUsers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to load users", err);
+      setError("Failed to load users");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    axiosClient
-      .get("/admin/users")
-      .then((res) => setUsers(res.data))
-      .catch(() => setError("Failed to load users"));
+    loadUsers();
   }, []);
 
   const getRoleBadgeClasses = (role) => {
@@ -21,7 +34,7 @@ export default function UsersAdmin() {
 
   return (
     <div className="min-h-[70vh] bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         {/* Header */}
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -39,8 +52,13 @@ export default function UsersAdmin() {
           </p>
         )}
 
-        {/* Users list */}
-        {!users.length ? (
+        {/* Loading */}
+        {loading && (
+          <p className="text-sm text-slate-500">Loading users…</p>
+        )}
+
+        {/* Empty state */}
+        {!loading && users.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
             <p className="text-base font-medium text-slate-800">
               No users found

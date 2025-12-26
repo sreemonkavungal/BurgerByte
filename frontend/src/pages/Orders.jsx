@@ -4,31 +4,42 @@ import axiosClient from "../api/axiosClient";
 export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const load = () =>
-    axiosClient
-      .get("/orders")
-      .then((res) => setOrders(res.data))
-      .catch(() => setError("Failed to load orders"));
+  const loadOrders = async () => {
+    try {
+      const res = await axiosClient.get("/api/orders");
+      setOrders(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to load orders", err);
+      setError("Failed to load orders");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    load();
+    loadOrders();
   }, []);
 
   const requestRefund = async (id) => {
-    await axiosClient.post(`/orders/${id}/refund`);
-    load();
+    try {
+      await axiosClient.post(`/api/orders/${id}/refund`);
+      loadOrders();
+    } catch (err) {
+      console.error("Refund request failed", err);
+      setError("Failed to request refund");
+    }
   };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
-    const d = new Date(dateStr);
-    return d.toLocaleString();
+    return new Date(dateStr).toLocaleString();
   };
 
   return (
     <div className="min-h-[70vh] bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         {/* Header */}
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -46,8 +57,13 @@ export default function Orders() {
           </p>
         )}
 
+        {/* Loading */}
+        {loading && (
+          <p className="text-sm text-slate-500">Loading orders...</p>
+        )}
+
         {/* Empty state */}
-        {!orders.length ? (
+        {!loading && !orders.length ? (
           <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
             <p className="text-base font-medium text-slate-800">
               No orders yet
@@ -63,7 +79,7 @@ export default function Orders() {
                 key={order._id}
                 className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm"
               >
-                {/* Top row: ID, date, total */}
+                {/* Top row */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-slate-900">
@@ -74,20 +90,19 @@ export default function Orders() {
                     </p>
 
                     <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
-                        Status:{" "}
-                        <span className="ml-1 capitalize">{order.status}</span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                        Status: <span className="capitalize">{order.status}</span>
                       </span>
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
                         Payment:{" "}
-                        <span className="ml-1 capitalize">
+                        <span className="capitalize">
                           {order.paymentStatus}
                         </span>
                       </span>
                       {order.refundStatus !== "none" && (
-                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
                           Refund:{" "}
-                          <span className="ml-1 capitalize">
+                          <span className="capitalize">
                             {order.refundStatus}
                           </span>
                         </span>
@@ -110,11 +125,11 @@ export default function Orders() {
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                     Items
                   </p>
-                  <ul className="space-y-1 text-sm text-slate-700">
+                  <ul className="space-y-1 text-xs sm:text-sm text-slate-700">
                     {order.items.map((item) => (
                       <li
                         key={item._id}
-                        className="flex items-center justify-between text-xs sm:text-sm"
+                        className="flex items-center justify-between"
                       >
                         <span>
                           {item.product?.name}{" "}
@@ -123,7 +138,10 @@ export default function Orders() {
                           </span>
                         </span>
                         <span className="text-slate-900">
-                          ₹{(item.price || item.product?.price || 0) * item.quantity}
+                          ₹
+                          {(item.price ||
+                            item.product?.price ||
+                            0) * item.quantity}
                         </span>
                       </li>
                     ))}

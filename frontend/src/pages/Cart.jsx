@@ -9,7 +9,7 @@ const Cart = () => {
 
   const load = () =>
     axiosClient
-      .get("/cart")
+      .get("/api/cart")
       .then((res) => setItems(res.data))
       .catch(() => setError("Failed to load cart"));
 
@@ -18,12 +18,12 @@ const Cart = () => {
   }, []);
 
   const removeItem = async (id) => {
-    await axiosClient.delete(`/cart/${id}`);
+    await axiosClient.delete(`/api/cart/${id}`);
     load();
   };
 
   const clearCart = async () => {
-    await axiosClient.delete("/cart");
+    await axiosClient.delete("/api/cart");
     load();
   };
 

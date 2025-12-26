@@ -6,24 +6,33 @@ export default function Favorites() {
   const [favorites, setFavorites] = useState([]);
   const [error, setError] = useState("");
 
-  const load = () =>
-    axiosClient
-      .get("/favorites")
-      .then((res) => setFavorites(res.data))
-      .catch(() => setError("Failed to load favorites"));
+  const loadFavorites = async () => {
+    try {
+      const res = await axiosClient.get("/api/favorites");
+      setFavorites(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to load favorites", err);
+      setError("Failed to load favorites");
+    }
+  };
 
   useEffect(() => {
-    load();
+    loadFavorites();
   }, []);
 
-  const remove = async (id) => {
-    await axiosClient.delete(`/favorites/${id}`);
-    load();
+  const removeFavorite = async (id) => {
+    try {
+      await axiosClient.delete(`/api/favorites/${id}`);
+      loadFavorites();
+    } catch (err) {
+      console.error("Failed to remove favorite", err);
+      setError("Failed to remove favorite");
+    }
   };
 
   return (
     <div className="min-h-[70vh] bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         {/* Header */}
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -64,7 +73,7 @@ export default function Favorites() {
                 key={p._id}
                 className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
               >
-                {/* Image (only if available) */}
+                {/* Image */}
                 {p.imageUrl && (
                   <Link
                     to={`/product/${p._id}`}
@@ -99,7 +108,7 @@ export default function Favorites() {
                       ₹{p.price}
                     </span>
                     <button
-                      onClick={() => remove(p._id)}
+                      onClick={() => removeFavorite(p._id)}
                       className="text-xs font-medium text-red-600 hover:text-red-500 sm:text-sm"
                     >
                       Remove

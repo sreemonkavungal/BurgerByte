@@ -9,31 +9,43 @@ export default function Checkout() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    axiosClient
-      .get("/cart")
-      .then((res) => setCart(res.data))
-      .catch(() => setError("Failed to load cart"));
+    const fetchCart = async () => {
+      try {
+        const res = await axiosClient.get("/api/cart");
+        setCart(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        console.error("Failed to load cart", err);
+        setError("Failed to load cart");
+      }
+    };
+
+    fetchCart();
   }, []);
 
   const total = cart.reduce(
-    (sum, item) => sum + (item.product?.price || 0) * item.quantity,
+    (sum, item) =>
+      sum + (item.product?.price || 0) * (item.quantity || 1),
     0
   );
 
   const placeOrder = async () => {
     try {
       setLoading(true);
-      await axiosClient.post("/orders", {
+      setError("");
+
+      await axiosClient.post("/api/orders", {
         items: cart.map((item) => ({
           product: item.product._id,
           quantity: item.quantity,
           customization: item.customization,
         })),
-        paymentStatus: "paid", // assume paid for demo
+        paymentStatus: "paid", // demo flow
       });
-      await axiosClient.delete("/cart");
+
+      await axiosClient.delete("/api/cart");
       navigate("/orders");
     } catch (err) {
+      console.error("Order placement failed", err);
       setError(err.response?.data?.message || "Failed to place order");
     } finally {
       setLoading(false);
@@ -53,9 +65,8 @@ export default function Checkout() {
           </div>
         </div>
 
-        {/* Layout */}
         <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-          {/* Left: Items summary */}
+          {/* Left: Items */}
           <div className="space-y-4">
             {error && (
               <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">
@@ -77,6 +88,7 @@ export default function Checkout() {
                 <h2 className="mb-3 text-sm font-semibold text-slate-700">
                   Order summary
                 </h2>
+
                 <div className="space-y-3">
                   {cart.map((item) => (
                     <div
@@ -93,6 +105,7 @@ export default function Checkout() {
                             {item.quantity}
                           </span>
                         </p>
+
                         {item.customization?.patty && (
                           <p className="text-xs text-slate-500">
                             Patty:{" "}
@@ -101,6 +114,7 @@ export default function Checkout() {
                             </span>
                           </p>
                         )}
+
                         {item.customization?.extras?.length > 0 && (
                           <p className="text-xs text-slate-500">
                             Extras:{" "}
@@ -110,6 +124,7 @@ export default function Checkout() {
                           </p>
                         )}
                       </div>
+
                       <p className="text-sm font-semibold text-slate-900">
                         ₹{(item.product?.price || 0) * item.quantity}
                       </p>
@@ -120,8 +135,8 @@ export default function Checkout() {
             )}
           </div>
 
-          {/* Right: Total + action */}
-          <div className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+          {/* Right: Payment */}
+          <div className="h-fit space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">
                 Payment summary
@@ -137,8 +152,8 @@ export default function Checkout() {
             </div>
 
             <p className="text-xs text-slate-500">
-              For demo purposes, this flow assumes payment is successful and
-              marks the order as <span className="font-medium">paid</span>.
+              This demo assumes payment is successful and marks the order as{" "}
+              <span className="font-medium">paid</span>.
             </p>
 
             <button
@@ -146,7 +161,7 @@ export default function Checkout() {
               disabled={loading || !cart.length}
               className={`w-full rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition ${
                 loading || !cart.length
-                  ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                  ? "cursor-not-allowed bg-slate-200 text-slate-500"
                   : "bg-amber-500 text-slate-900 hover:bg-amber-400"
               }`}
             >

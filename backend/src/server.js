@@ -13,34 +13,50 @@ import categoryRoutes from "./routes/categoryRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import favoriteRoutes from "./routes/favoriteRoutes.js";
 
-
 dotenv.config();
 const app = express();
 
-// Basic env validation to fail fast with clear errors
+/*ENV VALIDATION*/
 const requiredEnv = ["MONGO_URI", "JWT_SECRET", "JWT_EXPIRES_IN"];
 const missing = requiredEnv.filter((key) => !process.env[key]);
+
 if (missing.length) {
-  console.error(`Missing required env vars: ${missing.join(", ")}`);
+  console.error(`❌ Missing required env vars: ${missing.join(", ")}`);
   process.exit(1);
 }
 
+/* DATABASE*/
 connectDB();
 
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+/*CORS CONFIG (FIXED)*/
+const allowedOrigins = [
+  "http://localhost:5173",                 // local dev
+  "https://burger-byte-three.vercel.app",  // production frontend
+];
 
-// Middleware
-app.use(morgan("dev"));
-app.use(express.json());
-app.use(cookieParser());
 app.use(
   cors({
-    origin: CLIENT_URL,
+    origin: function (origin, callback) {
+      // Allow non-browser tools (Postman, Render health checks)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed for this origin"));
+      }
+    },
     credentials: true,
   })
 );
 
-// Routes
+/* MIDDLEWARE*/
+app.use(morgan("dev"));
+app.use(express.json());
+app.use(cookieParser());
+
+/*ROUTES*/
+
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
@@ -49,6 +65,17 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/favorites", favoriteRoutes);
 
+/* ===============================
+   HEALTH CHECK (OPTIONAL)
+================================ */
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "OK", service: "BurgerByte API" });
+});
 
+/* ===============================
+   SERVER
+================================ */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});

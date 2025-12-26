@@ -8,7 +8,7 @@ export default function Home() {
 
   useEffect(() => {
     axiosClient
-      .get("/products")
+      .get("/api/products")
       .then((res) => setProducts(res.data || []))
       .catch(() => setError("Failed to load products"));
   }, []);
